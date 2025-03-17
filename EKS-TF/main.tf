@@ -1,54 +1,54 @@
+# IAM Role for EKS Cluster
 data "aws_iam_policy_document" "assume_role" {
   statement {
     effect = "Allow"
-
     principals {
       type        = "Service"
       identifiers = ["eks.amazonaws.com"]
     }
-
     actions = ["sts:AssumeRole"]
   }
 }
 
-resource "aws_iam_role" "example" {
+resource "aws_iam_role" "eks_cluster_role" {
   name               = "eks-cluster-cloud"
   assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSClusterPolicy" {
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  role       = aws_iam_role.example.name
+  role       = aws_iam_role.eks_cluster_role.name
 }
 
-#get vpc data
+# Get VPC data
 data "aws_vpc" "default" {
   default = true
 }
-#get public subnets for cluster
+
+# Get public subnets for cluster
 data "aws_subnets" "public" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
 }
-#cluster provision
-resource "aws_eks_cluster" "example" {
+
+# EKS Cluster Provisioning
+resource "aws_eks_cluster" "eks_cluster" {
   name     = "EKS_CLOUD"
-  role_arn = aws_iam_role.example.arn
+  role_arn = aws_iam_role.eks_cluster_role.arn
 
   vpc_config {
     subnet_ids = data.aws_subnets.public.ids
   }
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Cluster handling.
-  # Otherwise, EKS will not be able to properly delete EKS managed EC2 infrastructure such as Security Groups.
   depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSClusterPolicy,
+    aws_iam_role_policy_attachment.eks_cluster_policy,
   ]
 }
 
-resource "aws_iam_role" "example1" {
+# IAM Role for EKS Node Group
+resource "aws_iam_role" "eks_node_group_role" {
   name = "eks-node-group-cloud"
 
   assume_role_policy = jsonencode({
@@ -63,40 +63,40 @@ resource "aws_iam_role" "example1" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKSWorkerNodePolicy" {
+# Attach Required Policies to Node Group Role
+resource "aws_iam_role_policy_attachment" "eks_worker_node_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEKS_CNI_Policy" {
+resource "aws_iam_role_policy_attachment" "eks_cni_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
-resource "aws_iam_role_policy_attachment" "example-AmazonEC2ContainerRegistryReadOnly" {
+resource "aws_iam_role_policy_attachment" "ecr_read_only" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-  role       = aws_iam_role.example1.name
+  role       = aws_iam_role.eks_node_group_role.name
 }
 
-#create node group
-resource "aws_eks_node_group" "example" {
-  cluster_name    = aws_eks_cluster.example.name
+# Create EKS Node Group
+resource "aws_eks_node_group" "eks_node_group" {
+  cluster_name    = aws_eks_cluster.eks_cluster.name
   node_group_name = "Node-cloud"
-  node_role_arn   = aws_iam_role.example1.arn
+  node_role_arn   = aws_iam_role.eks_node_group_role.arn
   subnet_ids      = data.aws_subnets.public.ids
 
   scaling_config {
-    desired_size = 1
-    max_size     = 2
+    desired_size = 2  # Increased desired size for better availability
+    max_size     = 3  # Increased max size for auto-scaling flexibility
     min_size     = 1
   }
-  instance_types = ["t2.medium"]
 
-  # Ensure that IAM Role permissions are created before and deleted after EKS Node Group handling.
-  # Otherwise, EKS will not be able to properly delete EC2 Instances and Elastic Network Interfaces.
+  instance_types = ["t3.medium"]  # Upgraded instance type for better performance
+
   depends_on = [
-    aws_iam_role_policy_attachment.example-AmazonEKSWorkerNodePolicy,
-    aws_iam_role_policy_attachment.example-AmazonEKS_CNI_Policy,
-    aws_iam_role_policy_attachment.example-AmazonEC2ContainerRegistryReadOnly,
+    aws_iam_role_policy_attachment.eks_worker_node_policy,
+    aws_iam_role_policy_attachment.eks_cni_policy,
+    aws_iam_role_policy_attachment.ecr_read_only,
   ]
 }
