@@ -4,37 +4,88 @@ metadata:
   name: mario-deployment
   labels:
     app: mario
+    version: v1
+  annotations:
+    kubernetes.io/description: "Super Mario game deployment"
 spec:
-  replicas: 3  # Increased replicas for better scalability
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: mario
+      version: v1
   template:
     metadata:
       labels:
         app: mario
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "80"
+        prometheus.io/path: "/"
     spec:
+      securityContext:
+        runAsNonRoot: false
+        runAsUser: 1000
+        fsGroup: 2000
       containers:
       - name: mario-container
-        image: sevenajay/mario:latest 
+        image: sevenajay/mario:latest
+        imagePullPolicy: Always
         ports:
-        - containerPort: 80
-        resources:  # Added resource limits for better stability
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        resources:
           requests:
             cpu: "100m"
             memory: "128Mi"
           limits:
-            cpu: "250m"
-            memory: "256Mi"
-        livenessProbe:  # Added liveness probe for better monitoring
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
           httpGet:
             path: /
-            port: 80
-          initialDelaySeconds: 5
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
           periodSeconds: 10
-        readinessProbe:  # Added readiness probe to handle traffic only when ready
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
           httpGet:
             path: /
-            port: 80
-          initialDelaySeconds: 3
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        startupProbe:
+          httpGet:
+            path: /
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+        env:
+        - name: NODE_ENV
+          value: "production"
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst

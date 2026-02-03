@@ -1,0 +1,25 @@
+# Copy this file to terraform.tfvars and customize for your environment
+
+# Cluster Configuration
+cluster_name    = "EKS_CLOUD"
+aws_region      = "ap-south-1"
+eks_version     = "1.29"
+
+# Node Group Configuration
+node_group_name = "Node-cloud"
+instance_types  = ["t3.medium"]
+desired_size    = 2
+max_size        = 4
+min_size        = 1
+disk_size       = 30
+
+# Security Configuration
+ssh_key_name    = "eks-key"
+
+# Environment Configuration
+environment     = "Production"
+project_name    = "Super Mario EKS Deployment"
+
+# Logging Configuration
+enable_logging      = true
+log_retention_days  = 14

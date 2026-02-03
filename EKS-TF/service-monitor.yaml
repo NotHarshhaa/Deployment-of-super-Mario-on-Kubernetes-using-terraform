@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mario-service-monitor
+  labels:
+    app: mario
+    release: prometheus
+  annotations:
+    kubernetes.io/description: "ServiceMonitor for Super Mario game deployment"
+spec:
+  selector:
+    matchLabels:
+      app: mario
+  namespaceSelector:
+    matchNames:
+    - default
+  endpoints:
+  - port: http
+    path: /
+    interval: 30s
+    scrapeTimeout: 10s
+    honorLabels: true
+    metricRelabelings:
+    - sourceLabels: [__address__]
+      targetLabel: instance
+      replacement: 'mario-game'
